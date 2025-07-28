@@ -39,3 +39,13 @@ docker run -d -p 8787:80 -e "ASPNETCORE_ENVIRONMENT=Development" --name api api
 ```
 
 
+### Endpoints and detail
+1- /stress/cpu: Measure CPU usage under high load
+2- /stress/memory: Controlled memory usage
+3- /stress/request: Generate many requests in a short period
+4- /stress/latency: Measure response latency
+5- /stress/gc: Force garbage collection to evaluate memory handling
+6- /stress/thread: Spawn multiple threads/tasks to test multithreaded concurrency
+7- /stress/cpu-intensity: Sustained CPU load to test throttling and stability
+8- /stress/load: Generate combined load (CPU, memory, requests)
+
