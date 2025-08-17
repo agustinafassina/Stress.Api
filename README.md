@@ -4,6 +4,7 @@ This API provides endpoints for stress testing by simulating multiple requests. 
 ### 📝Api Diagram
 <img src="api-diagram.png" alt="Logo del proyecto" width="400" height="450">
 
+## 📄API Reference
 ### 🔐Authorization in the Api
 It implements JWT authentication to secure endpoints, validating issuer, audience, and signature, allowing access only to authorized users.
 ```
