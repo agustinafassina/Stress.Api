@@ -1,10 +1,10 @@
 ## Stress.Api
 This API provides endpoints for stress testing by simulating multiple requests. Use it to evaluate the performance and stability of your system.
 
-### Api Diagram
+### 📝Api Diagram
 <img src="api-diagram.png" alt="Logo del proyecto" width="400" height="450">
 
-### Authorization in the Api
+### 🔐Authorization in the Api
 It implements JWT authentication to secure endpoints, validating issuer, audience, and signature, allowing access only to authorized users.
 ```
 [Authorize(AuthenticationSchemes = "Auth0App1")]
@@ -40,12 +40,41 @@ docker run -d -p 8787:80 -e "ASPNETCORE_ENVIRONMENT=Development" --name api api
 
 
 ### Endpoints and detail
-1- /stress/cpu: Measure CPU usage under high load
-2- /stress/memory: Controlled memory usage
-3- /stress/request: Generate many requests in a short period
-4- /stress/latency: Measure response latency
-5- /stress/gc: Force garbage collection to evaluate memory handling
-6- /stress/thread: Spawn multiple threads/tasks to test multithreaded concurrency
-7- /stress/cpu-intensity: Sustained CPU load to test throttling and stability
-8- /stress/load: Generate combined load (CPU, memory, requests)
+1 - Measure CPU usage under high load:
+```http
+GET /stress/cpu
+```
+2 - Controlled memory usage:
+```http
+GET /stress/memory
+```
 
+3 - Generate many requests in a short period:
+```http
+GET /stress/request
+```
+
+4 - Measure response latency:
+```http
+GET /stress/latency
+```
+
+5 - Force garbage collection to evaluate memory handling:
+```http
+GET /stress/gc
+```
+
+6 - Spawn multiple threads/tasks to test multithreaded concurrency:
+```http
+GET /stress/thread
+```
+
+7 - Sustained CPU load to test throttling and stability:
+```http
+GET /stress/cpu-intensity
+```
+
+8 - Generate combined load (CPU, memory, requests):
+```http
+GET /stress/load
+```
