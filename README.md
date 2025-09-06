@@ -1,10 +1,10 @@
 ## Stress.Api
 This API provides endpoints for stress testing by simulating multiple requests. Use it to evaluate the performance and stability of your system.
 
+## 📄API Reference
 ### 📝Api Diagram
 <img src="api-diagram.png" alt="Logo del proyecto" width="400" height="450">
 
-## 📄API Reference
 ### 🔐Authorization in the Api
 It implements JWT authentication to secure endpoints, validating issuer, audience, and signature, allowing access only to authorized users.
 ```
