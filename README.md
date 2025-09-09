@@ -2,7 +2,7 @@
 This API provides endpoints for stress testing by simulating multiple requests. Use it to evaluate the performance and stability of your system.
 
 ## 📄API Reference
-### 📝Api Diagram
+### 📝Diagram
 <img src="api-diagram.png" alt="Logo del proyecto" width="400" height="450">
 
 ### 🔐Authorization in the Api
@@ -23,13 +23,13 @@ Environment variables setting (auth0 in this case)
   }
 ```
 
-## Dotnet build and run
+### 🚀Dotnet build and run
 ```
 dotnet build
 dotnet run
 ```
 
-## Docker build and run
+### 🚀Docker build and run
 
 ```
 # Docker build
@@ -40,7 +40,7 @@ docker run -d -p 8787:80 -e "ASPNETCORE_ENVIRONMENT=Development" --name api api
 ```
 
 
-### Endpoints and detail
+### 📋Endpoints and detail
 1 - Measure CPU usage under high load:
 ```http
 GET /stress/cpu
