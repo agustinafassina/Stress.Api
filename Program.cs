@@ -1,60 +1,52 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
-using StressApi.Services;
-using StressApi.Services.Implementations;
-using StressApi.Services.Interfaces;
 
 var builder = WebApplication.CreateBuilder(args);
 var configuration = builder.Configuration;
 
-builder.Services.AddAutoMapper(typeof(StressApi.Mappers.ContractMapping));
-
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-builder.Services.AddTransient<IItemService, ItemService>();
+builder.Services.AddHealthChecks();
 
-builder.Services.AddAuthentication(options =>
-{
-    options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
-})
-.AddJwtBearer("Auth0App1", options =>
-{
-    options.Audience = configuration["Auth0App1:Audience"] ?? Environment.GetEnvironmentVariable("Auth0App1.Audience");
-    options.Authority = configuration["Auth0App1:Issuer"] ?? Environment.GetEnvironmentVariable("Auth0App1.Issuer");
-    options.TokenValidationParameters = new TokenValidationParameters
-    {
-        ValidateIssuer = true,
-        ValidIssuer = configuration["Auth0App1:Issuer"] ?? Environment.GetEnvironmentVariable("Auth0App1.Issuer")
-    };
-})
-.AddJwtBearer("Auth0App2", options =>
-{
-    options.Audience = configuration["Auth0App2:Audience"] ?? Environment.GetEnvironmentVariable("Auth0App2.Audience");
-    options.Authority = configuration["Auth0App2:Issuer"] ?? Environment.GetEnvironmentVariable("Auth0App2.Issuer");
-    options.TokenValidationParameters = new TokenValidationParameters
-    {
-        ValidateIssuer = true,
-        ValidIssuer = configuration["Auth0App2:Issuer"] ?? Environment.GetEnvironmentVariable("Auth0App2.Issuer")
-    };
-});
-
+// Two JWT schemes are registered as an example. Endpoints stay public unless
+// they are decorated with [Authorize(AuthenticationSchemes = "Auth0App1")].
+// No default scheme on purpose: otherwise every request would be authenticated against it.
+// Settings come from appsettings or environment variables (Auth0App1__Issuer, Auth0App1__Audience, ...).
+builder.Services.AddAuthentication()
+    .AddJwtBearer("Auth0App1", options => ConfigureJwt(options, configuration.GetSection("Auth0App1")))
+    .AddJwtBearer("Auth0App2", options => ConfigureJwt(options, configuration.GetSection("Auth0App2")));
 
 builder.Services.AddControllers();
 
 var app = builder.Build();
-
-app.UseHttpsRedirection();
-app.UseRouting();
-
-app.UseAuthentication();
-app.UseAuthorization();
 
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+else
+{
+    app.UseHttpsRedirection();
+}
 
+app.UseRouting();
+
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.MapHealthChecks("/health");
 app.MapControllers();
 
 app.Run();
+
+static void ConfigureJwt(JwtBearerOptions options, IConfigurationSection section)
+{
+    options.Audience = section["Audience"];
+    options.Authority = section["Issuer"];
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidIssuer = section["Issuer"]
+    };
+}

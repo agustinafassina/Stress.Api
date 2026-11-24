@@ -1,6 +1,30 @@
 @StressApi_HostAddress = http://localhost:5142
 
-GET {{StressApi_HostAddress}}/weatherforecast/
-Accept: application/json
+GET {{StressApi_HostAddress}}/health
 
 ###
+GET {{StressApi_HostAddress}}/api/stress/version
+
+###
+GET {{StressApi_HostAddress}}/api/stress/cpu?iterations=10000000
+
+###
+GET {{StressApi_HostAddress}}/api/stress/memory?sizeMb=100
+
+###
+GET {{StressApi_HostAddress}}/api/stress/request?tasks=50&iterations=100
+
+###
+GET {{StressApi_HostAddress}}/api/stress/latency?delayMs=200
+
+###
+GET {{StressApi_HostAddress}}/api/stress/gc
+
+###
+GET {{StressApi_HostAddress}}/api/stress/thread?count=20&iterations=100000
+
+###
+GET {{StressApi_HostAddress}}/api/stress/cpu-intensity?seconds=10
+
+###
+GET {{StressApi_HostAddress}}/api/stress/load?delayMs=500&iterations=1000000&sizeMb=10
