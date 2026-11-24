@@ -1,135 +1,194 @@
-using AutoMapper;
-using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics;
-using System;
-using System.IO;
-using StressApi.Services.Interfaces;
+using Microsoft.AspNetCore.Mvc;
 
-namespace TemplateApi.Controllers
+namespace StressApi.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
     public class StressController : ControllerBase
     {
-        private readonly IItemService _itemService;
-        private readonly IMapper _mapper;
-
-        public StressController(IItemService itemService, IMapper mapper)
-        {
-            _itemService = itemService;
-            _mapper = mapper;
-        }
+        // Upper limits to avoid accidentally killing the host.
+        private const long MaxIterations = 1_000_000_000;
+        private const int MaxMemoryMb = 2048;
+        private const int MaxTasks = 1_000;
+        private const int MaxSeconds = 300;
+        private const int MaxDelayMs = 60_000;
 
         [HttpGet("version")]
-        public async Task<IActionResult> GetVersion()
-        {
-            return Ok("v.1.0.0");
-        }
+        public IActionResult GetVersion() => Ok("v.1.1.0");
 
         // 1. CPU load
         [HttpGet("cpu")]
-        public IActionResult CpuStress()
+        public IActionResult CpuStress([FromQuery] long iterations = 10_000_000)
         {
+            if (!InRange(iterations, 1, MaxIterations, out var error)) return error;
+
             var sw = Stopwatch.StartNew();
-            for (int i = 0; i < 10_000_000; i++)
-            {
-                Math.Sqrt(i);
-            }
+            var checksum = SqrtSum(iterations);
             sw.Stop();
-            return Ok(new { message = "CPU Load Test", durationMs = sw.ElapsedMilliseconds });
+
+            return Ok(new { message = "CPU Load Test", iterations, durationMs = sw.ElapsedMilliseconds, checksum, metrics = Metrics() });
         }
 
         // 2. Memory usage
         [HttpGet("memory")]
-        public IActionResult MemoryStress()
+        public IActionResult MemoryStress([FromQuery] int sizeMb = 100)
         {
-            var buffer = new byte[100_000_000]; // 100MB
-            for (int i = 0; i < buffer.Length; i++)
-                buffer[i] = (byte)(i % 256);
-            return Ok(new { message = "Memory allocated", sizeMB = buffer.Length / 1024 / 1024 });
-        }
+            if (!InRange(sizeMb, 1, MaxMemoryMb, out var error)) return error;
 
-        // 3. Request flood
-        [HttpGet("request")]
-        public IActionResult RequestFlood()
-        {
-            var tasks = Enumerable.Range(0, 50).Select(_ => Task.Run(() =>
-            {
-                for (int i = 0; i < 100; i++)
-                    Math.Sqrt(i);
-            }));
-            Task.WaitAll(tasks.ToArray());
-            return Ok(new { message = "Multiple requests executed" });
-        }
-
-        // 4. Latency test
-        [HttpGet("latency")]
-        public IActionResult LatencyTest()
-        {
             var sw = Stopwatch.StartNew();
-            // Simula carga
-            for (int i = 0; i < 1_000_000; i++) { }
+            var buffer = Allocate(sizeMb);
             sw.Stop();
-            return Ok(new { message = "Latency test completed", durationMs = sw.ElapsedMilliseconds });
+
+            var response = new { message = "Memory allocated", sizeMB = buffer.Length / 1024 / 1024, durationMs = sw.ElapsedMilliseconds, metrics = Metrics() };
+            GC.KeepAlive(buffer);
+            return Ok(response);
+        }
+
+        // 3. Request flood (many short tasks in parallel)
+        [HttpGet("request")]
+        public async Task<IActionResult> RequestFlood([FromQuery] int tasks = 50, [FromQuery] long iterations = 100)
+        {
+            if (!InRange(tasks, 1, MaxTasks, out var error)) return error;
+            if (!InRange(iterations, 1, MaxIterations, out error)) return error;
+
+            var sw = Stopwatch.StartNew();
+            var results = await Task.WhenAll(Enumerable.Range(0, tasks).Select(_ => Task.Run(() => SqrtSum(iterations))));
+            sw.Stop();
+
+            return Ok(new { message = "Multiple requests executed", tasks, durationMs = sw.ElapsedMilliseconds, checksum = results.Sum(), metrics = Metrics() });
+        }
+
+        // 4. Latency test (optional artificial delay to simulate a slow dependency)
+        [HttpGet("latency")]
+        public async Task<IActionResult> LatencyTest([FromQuery] int delayMs = 0)
+        {
+            if (!InRange(delayMs, 0, MaxDelayMs, out var error)) return error;
+
+            var sw = Stopwatch.StartNew();
+            if (delayMs > 0) await Task.Delay(delayMs);
+            var checksum = SqrtSum(1_000_000);
+            sw.Stop();
+
+            return Ok(new { message = "Latency test completed", delayMs, durationMs = sw.ElapsedMilliseconds, checksum });
         }
 
         // 5. Force garbage collection
         [HttpGet("gc")]
         public IActionResult ForceGC()
         {
+            var before = Metrics();
+            var sw = Stopwatch.StartNew();
             GC.Collect();
             GC.WaitForPendingFinalizers();
-            return Ok(new { message = "Garbage collection triggered" });
+            GC.Collect();
+            sw.Stop();
+
+            return Ok(new { message = "Garbage collection triggered", durationMs = sw.ElapsedMilliseconds, before, after = Metrics() });
         }
 
         // 6. Multithreading load
         [HttpGet("thread")]
-        public IActionResult MultiThreadLoad()
+        public async Task<IActionResult> MultiThreadLoad([FromQuery] int count = 20, [FromQuery] long iterations = 100_000)
         {
-            var tasks = new List<Task>();
-            for (int i = 0; i < 20; i++)
-            {
-                tasks.Add(Task.Run(() =>
-                {
-                    for (int j = 0; j < 100_000; j++)
-                    {
-                        Math.Sqrt(j);
-                    }
-                }));
-            }
-            Task.WaitAll(tasks.ToArray());
-            return Ok(new { message = "Multithread load executed" });
+            if (!InRange(count, 1, MaxTasks, out var error)) return error;
+            if (!InRange(iterations, 1, MaxIterations, out error)) return error;
+
+            var sw = Stopwatch.StartNew();
+            var threads = Enumerable.Range(0, count)
+                .Select(_ => Task.Factory.StartNew(() => SqrtSum(iterations), TaskCreationOptions.LongRunning));
+            var results = await Task.WhenAll(threads);
+            sw.Stop();
+
+            return Ok(new { message = "Multithread load executed", count, durationMs = sw.ElapsedMilliseconds, checksum = results.Sum(), metrics = Metrics() });
         }
 
-        // 7. CPU intensity prolongada
+        // 7. Sustained CPU load
         [HttpGet("cpu-intensity")]
-        public IActionResult CpuLongLoad()
+        public IActionResult CpuLongLoad([FromQuery] int seconds = 10)
         {
+            if (!InRange(seconds, 1, MaxSeconds, out var error)) return error;
+
             var sw = Stopwatch.StartNew();
-            var endTime = DateTime.UtcNow.AddSeconds(10);
-            while (DateTime.UtcNow < endTime)
+            var limit = TimeSpan.FromSeconds(seconds);
+            double checksum = 0;
+            while (sw.Elapsed < limit)
             {
-                Math.Log(DateTime.UtcNow.Ticks);
+                checksum += Math.Log(sw.ElapsedTicks + 1);
             }
             sw.Stop();
-            return Ok(new { message = "Long CPU load completed", durationMs = sw.ElapsedMilliseconds });
+
+            return Ok(new { message = "Long CPU load completed", seconds, durationMs = sw.ElapsedMilliseconds, checksum, metrics = Metrics() });
         }
 
-        // 8. Load combinada
+        // 8. Combined load (delay + CPU + memory)
         [HttpGet("load")]
-        public IActionResult CombinedLoad()
+        public async Task<IActionResult> CombinedLoad([FromQuery] int delayMs = 500, [FromQuery] long iterations = 1_000_000, [FromQuery] int sizeMb = 10)
         {
-            // Combining CPU, memoria y requests
-            Task.Delay(500).Wait();
+            if (!InRange(delayMs, 0, MaxDelayMs, out var error)) return error;
+            if (!InRange(iterations, 1, MaxIterations, out error)) return error;
+            if (!InRange(sizeMb, 0, MaxMemoryMb, out error)) return error;
+
+            var total = Stopwatch.StartNew();
+            if (delayMs > 0) await Task.Delay(delayMs);
+
             var cpuSw = Stopwatch.StartNew();
-            for (int i = 0; i < 1_000_000; i++) Math.Sqrt(i);
+            var checksum = SqrtSum(iterations);
             cpuSw.Stop();
-            return Ok(new
+
+            var buffer = Allocate(sizeMb);
+            total.Stop();
+
+            var response = new
             {
                 message = "Combined load executed",
+                delayMs,
                 cpuDurationMs = cpuSw.ElapsedMilliseconds,
-                memSizeMB = 10
-            });
+                memSizeMB = buffer.Length / 1024 / 1024,
+                totalDurationMs = total.ElapsedMilliseconds,
+                checksum,
+                metrics = Metrics()
+            };
+            GC.KeepAlive(buffer);
+            return Ok(response);
+        }
+
+        // The result is returned so the JIT cannot optimize the loop away.
+        private static double SqrtSum(long iterations)
+        {
+            double sum = 0;
+            for (long i = 0; i < iterations; i++)
+                sum += Math.Sqrt(i);
+            return sum;
+        }
+
+        // Touches every byte so the memory is actually committed.
+        private static byte[] Allocate(int sizeMb)
+        {
+            var buffer = new byte[sizeMb * 1024 * 1024];
+            for (int i = 0; i < buffer.Length; i++)
+                buffer[i] = (byte)(i % 256);
+            return buffer;
+        }
+
+        private static object Metrics()
+        {
+            using var process = Process.GetCurrentProcess();
+            return new
+            {
+                managedMemoryMB = GC.GetTotalMemory(false) / 1024 / 1024,
+                workingSetMB = process.WorkingSet64 / 1024 / 1024,
+                threads = process.Threads.Count,
+                gen0Collections = GC.CollectionCount(0),
+                gen1Collections = GC.CollectionCount(1),
+                gen2Collections = GC.CollectionCount(2)
+            };
+        }
+
+        private bool InRange(long value, long min, long max, out IActionResult error)
+        {
+            error = BadRequest(new { message = $"Value must be between {min} and {max}.", value });
+            return value >= min && value <= max;
         }
     }
 }
